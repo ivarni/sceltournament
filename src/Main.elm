@@ -1,3 +1,5 @@
+port module Main exposing (..)
+
 import Browser
 import Html exposing (Html)
 
@@ -11,6 +13,12 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 
+import Json.Encode as E
+import Json.Decode as Decode exposing (Decoder, Value, decodeValue)
+
+import Api
+
+
 -- COLORs
 
 white =
@@ -23,20 +31,28 @@ blue =
 -- MAIN
 
 main =
-  Browser.sandbox { init = init, update = update, view = view }
+  Browser.element
+    { init = init
+    , update = update
+    , view = view
+    , subscriptions = subscriptions
+    }
+
 
 
 -- MODEL
 
 type alias Matchup =
-  { playerOne : Person
-  , playerTwo : Person
-  , winner : Maybe Person
+  { id : String
+  , round : Int
+  , playerOne : Maybe Int
+  , playerTwo : Maybe Int
+  , winner : Maybe Int
   }
 
 type alias Person =
-  { name : String
-  , playing : Bool
+  { id : Int
+  , name : String
   }
 
 type alias Model =
@@ -45,14 +61,37 @@ type alias Model =
   , matchups: List Matchup
   }
 
-init : Model
-init =
-  Model
-    "Fortsatt ikke Ivar"
-    [Person "Ivar" True, Person "Ikke Ivar" True]
-    [ Matchup (Person "Ivar" True) (Person "Ikke Ivar" True) Nothing
-    , Matchup (Person "Ivar" True) (Person "Ikke Ivar" True) Nothing
-    ]
+init : () -> (Model, Cmd Msg)
+init _ =
+  -- https://scelto.no/ansatte/
+  -- copy([].map.call($$('.mugshot .sc-link'), (el,idx) => `, Person ${idx + 1} "${el.text}"`).join('\n'))
+  ( Model
+      ""
+      [ Person 1 "Lars Olav Torvik"
+      , Person 2 "Terje Lønøy"
+      , Person 3 "Fredrik Svensen"
+      , Person 4 "Seán Erik Scully"
+      , Person 5 "Vetle Valebjørg"
+      , Person 6 "Lars Fredrik Lunde"
+      , Person 7 "Fredrik Bjørnøy"
+      , Person 8 "Ken Gullaksen"
+      , Person 9 "Bjarte Tynning"
+      , Person 10 "Ivar Nilsen"
+      , Person 11 "Jan Erik Svendsen"
+      , Person 12 "Richard Rennemo"
+      , Person 13 "Erik Salhus"
+      , Person 14 "Gustav Bilben"
+      , Person 15 "Erlend Nilsen"
+      , Person 16 "Ole-André Riga-Johansen"
+      , Person 17 "Marius Aune Gravdal"
+      , Person 18 "Ole Tommy Lid-Strand"
+      , Person 19 "Håken Stark"
+      , Person 20 "Herman Crawfurd Svensen"
+      , Person 21 "Tor Eric Sandvik"
+      ]
+      []
+    , Cmd.none
+  )
 
 
 -- UPDATE
@@ -61,21 +100,69 @@ type Msg
   = Change String
   | Add
   | Generate
+  | ReceiveMatchups (List Matchup)
+  | Winner String Int
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     Change name ->
-      { model | name = name }
+      ( { model | name = name }
+        , Cmd.none
+      )
 
     Add ->
-      { model
-        | people = Person model.name True :: model.people
-        , name = ""
-      }
+      ( { model
+          | people = Person (List.length model.people) model.name :: model.people
+          , name = ""
+        }
+        , Cmd.none
+      )
 
     Generate ->
-      model
+      ( model
+      , Api.createMatchups model.people
+      )
+
+    ReceiveMatchups value ->
+      ( { model | matchups = value }
+      , Cmd.none
+      )
+
+    Winner matchup winner ->
+      ( model
+      , Api.scoreMatchup matchup winner
+      )
+
+
+--SUBSCRIPTIONS
+
+matchupsDecoder : Decoder (List Matchup)
+matchupsDecoder =
+  Decode.list
+    (Decode.map5
+      Matchup
+      -- Maybe map to simpler structure in index.js
+        (Decode.at ["id"] Decode.string)
+        (Decode.at ["round"] Decode.int)
+        (Decode.maybe (Decode.at ["playerOne"] Decode.int))
+        (Decode.maybe (Decode.at ["playerTwo"] Decode.int))
+        (Decode.maybe (Decode.at ["winner"] Decode.int))
+    )
+
+decodeMatchups : Value -> Msg
+decodeMatchups value
+  = case decodeValue matchupsDecoder value of
+      Ok result ->
+        ReceiveMatchups result
+
+      Err err ->
+        ReceiveMatchups []
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+  Api.onMatchupsUpdated decodeMatchups
+
 
 -- VIEW
 
@@ -97,17 +184,27 @@ view model =
         ]
         { label = Input.labelAbove [ Font.size 14 ] (text "Name")
         , onChange = \new -> Change new
-        , placeholder = Just (Input.placeholder [] (text "Participant"))
+        , placeholder = Just (Input.placeholder [] (text "Player"))
         , text = model.name
         }
-      , Input.button
-        [ Background.color blue
-        , Font.color white
-        , paddingXY 32 16
+      , Element.row [ width (px 800), alignLeft, spacing 15 ]
+        [ Input.button
+          [ Background.color blue
+          , Font.color white
+          , paddingXY 32 16
+          ]
+          { onPress = Just Add
+          , label = text "Add player"
+          }
+        , Input.button
+          [ Background.color blue
+          , Font.color white
+          , paddingXY 32 16
+          ]
+          { onPress = Just Generate
+          , label = text "Generate matchups"
+          }
         ]
-        { onPress = Just Add
-        , label = text "Add player"
-        }
       , el
         [ Region.heading 2
         , alignLeft
@@ -124,57 +221,64 @@ view model =
             , view =
                 \person -> text person.name
             }
-          , { header = text "Playing"
-            , width = px 100
-            , view =
-                \person -> text (playingString person.playing)
-            }
           ]
         }
-      , Input.button
-        [ Background.color blue
-        , Font.color white
-        , paddingXY 16 8
+      , Element.table
+        [ spacing 15
         ]
-        { onPress = Just Generate
-        , label = text "Generate matchups"
+        { data = model.matchups
+        , columns =
+          [ { header = text "Match"
+            , width = px 800
+            , view =
+                \matchup -> viewMatchup matchup model.people
+            }
+          ]
+
         }
-      , Element.html (viewMatchups model.matchups)
       ]
 
-viewMatchups : List Matchup -> Html Msg
-viewMatchups matchups =
-  let
-    viewBox = SvgAttr.viewBox
-    fontSize = SvgAttr.fontSize
-  in
-  svg
-    [ viewBox "0 0 800 800",
-      fontSize "20"
-    ]
-    (List.indexedMap viewMatchup matchups)
+viewMatchup : Matchup -> List Person -> Element Msg
+viewMatchup matchup people =
+  case (matchup.playerOne, matchup.playerTwo) of
+    (Nothing, Nothing) ->
+      Element.el [] (text "todo")
 
-viewMatchup index matchup =
-  let
-    text_ = Svg.text_
-    text = Svg.text
-    g = Svg.g
+    (Just playerOne, Nothing) ->
+      Element.el [] (text "todo")
 
-    x = SvgAttr.x
-    y = SvgAttr.y
-    r = SvgAttr.r
-    fill = SvgAttr.fill
-    width = SvgAttr.width
-    height = SvgAttr.height
-    transform = SvgAttr.transform
-    color = SvgAttr.color
-  in
-  g
-    [transform ("translate(0, " ++ (String.fromInt (20 + 80 * index)) ++ ")")
-    ]
-    [ text_ [] [text matchup.playerOne.name]
-    , text_ [y "20"] [text matchup.playerTwo.name]
-    ]
+    (Nothing, Just playerTwo) ->
+      Element.el [] (text "todo")
+
+    (Just playerOne, Just playerTwo) ->
+      Input.radio
+        [ spacing 10
+        ]
+        { selected = matchup.winner
+        , onChange = \winner -> Winner matchup.id winner
+        , label = Input.labelAbove
+          [ Font.size 14
+          , paddingXY 0 12
+          ]
+          (text ("Round " ++ String.fromInt matchup.round))
+        , options =
+            [ Input.option
+                playerOne
+                (text (findPlayerName playerOne people))
+            , Input.option
+                playerTwo
+                (text (findPlayerName playerTwo people))
+            ]
+        }
+
+findPlayerName : Int -> List Person -> String
+findPlayerName id people =
+    case people |> List.filter (\p -> p.id == id) |> List.head of
+      Just person ->
+        person.name
+
+      Nothing ->
+        "oops"
 
 
 playingString : Bool -> String

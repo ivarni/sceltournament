@@ -1,9 +1,10 @@
 {
     "verbose": true,
     "ext": "*.elm",
-    "exec": "elm make src/Main.elm",
+    "exec": "elm make src/Main.elm --output=dist/elm.js",
     "ignore": [
         "node_modules/**/node_modules",
-        "elm-stuff/**/*"
+        "elm-stuff/**/*",
+        "dist/**/*"
     ]
 }

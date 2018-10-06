@@ -2,14 +2,24 @@
   "name": "tournament",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "start": "nodemon",
-    "build": "elm make src/Main.elm"
+    "webpack:watch": "webpack --watch",
+    "uglify:elm": "uglifyjs dist/elm.js --compress 'pure_funcs=\"F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9\",pure_getters,keep_fargs=false,unsafe_comps,unsafe' | uglifyjs --mangle --output=dist/elm.min.js",
+    "dist:elm": "elm make src/Main.elm --output=dist/elm.js --optimize",
+    "dist:js": "webpack",
+    "dist": "npm run dist:js && npm run dist:elm && npm run uglify:elm"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "nodemon": "^1.18.4"
+    "nodemon": "^1.18.4",
+    "webpack": "^4.20.2",
+    "webpack-cli": "^3.1.2"
+  },
+  "dependencies": {
+    "duel": "^3.2.0",
+    "uuid": "^3.3.2"
   }
 }
