@@ -1,0 +1,9 @@
+{
+    "verbose": true,
+    "ext": "*.elm",
+    "exec": "elm make src/Main.elm",
+    "ignore": [
+        "node_modules/**/node_modules",
+        "elm-stuff/**/*"
+    ]
+}
