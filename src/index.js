@@ -56,12 +56,6 @@ const sendUpdate = () =>
              * Should probably show these eventually
              */
             .filter(m => m.p.every(p => p != -1))
-            /*
-             * Filtering out matches with no players
-             * p of [0, 0]
-             * Should probably show these eventually
-             */
-            .filter(m => m.p.every(p => p != 0))
             .map(mapToElmModel)
     )
 

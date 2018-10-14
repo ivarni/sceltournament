@@ -2,6 +2,7 @@ port module Main exposing (..)
 
 import Browser
 import Html exposing (Html)
+import Set
 
 import Svg exposing (svg)
 import Svg.Attributes as SvgAttr
@@ -223,53 +224,66 @@ view model =
             }
           ]
         }
-      , Element.table
-        [ spacing 15
-        ]
-        { data = model.matchups
-        , columns =
-          [ { header = text "Match"
-            , width = px 800
-            , view =
-                \matchup -> viewMatchup matchup model.people
-            }
-          ]
-
-        }
+      , Element.row []
+        ( List.map (\r -> viewRound r model.people) (getRounds model.matchups) )
       ]
+
+getRounds : List Matchup -> List (List Matchup)
+getRounds matchups =
+  let
+    rounds = Set.fromList (List.map (\m -> m.round) matchups)
+  in
+    List.map (\r -> List.filter (\m -> m.round == r) matchups) (Set.toList rounds)
+
+viewRound : List Matchup -> List Person -> Element Msg
+viewRound matches people =
+  Element.column [ width (px 400), spacing 20]
+    ( List.map (\m -> viewMatchup m people) matches )
 
 viewMatchup : Matchup -> List Person -> Element Msg
 viewMatchup matchup people =
   case (matchup.playerOne, matchup.playerTwo) of
     (Nothing, Nothing) ->
-      Element.el [] (text "todo")
+      Element.column [ height (px 50)]
+      []
 
     (Just playerOne, Nothing) ->
-      Element.el [] (text "todo")
+      Element.column [ paddingXY 23 0, height (px 50)]
+      [ text (findPlayerName playerOne people)
+      ]
 
     (Nothing, Just playerTwo) ->
-      Element.el [] (text "todo")
+      Element.column [ paddingXY 23 0, height (px 50)]
+      [ text (findPlayerName playerTwo people)
+      ]
 
     (Just playerOne, Just playerTwo) ->
-      Input.radio
-        [ spacing 10
-        ]
-        { selected = matchup.winner
-        , onChange = \winner -> Winner matchup.id winner
-        , label = Input.labelAbove
-          [ Font.size 14
-          , paddingXY 0 12
+      if (playerTwo == -1 || playerOne == -1) then
+        Element.column [ paddingXY 23 0, height (px 50)]
+          [ text (findPlayerName playerOne people)
+          , text (findPlayerName playerTwo people)
           ]
-          (text ("Round " ++ String.fromInt matchup.round))
-        , options =
-            [ Input.option
-                playerOne
-                (text (findPlayerName playerOne people))
-            , Input.option
-                playerTwo
-                (text (findPlayerName playerTwo people))
+      else
+        Element.column [ height (px 50)]
+        [ Input.radio
+          [ spacing 5]
+          { selected = matchup.winner
+          , onChange = \winner -> Winner matchup.id winner
+          , label = Input.labelAbove
+            [ Font.size 14
+            , padding 0
             ]
-        }
+            (text "")
+          , options =
+              [ Input.option
+                  playerOne
+                  (text (findPlayerName playerOne people))
+              , Input.option
+                  playerTwo
+                  (text (findPlayerName playerTwo people))
+              ]
+          }
+        ]
 
 findPlayerName : Int -> List Person -> String
 findPlayerName id people =
@@ -278,7 +292,7 @@ findPlayerName id people =
         person.name
 
       Nothing ->
-        "oops"
+        ""
 
 
 playingString : Bool -> String
